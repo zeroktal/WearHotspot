@@ -26,11 +26,11 @@ android {
         abortOnError false
     }
 }
-
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     
-    // THIS WAS MISSING: Required for the proxy to run in the background
+    // Add BOTH of these to be safe
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }
