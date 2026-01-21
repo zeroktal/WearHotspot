@@ -78,46 +78,6 @@ private fun startP2PGroup() {
         })
     }
 
-private fun attemptCreation() {
-        // Give the hardware a moment to settle after the "removeGroup" call
-        android.os.Handler(Looper.getMainLooper()).postDelayed({
-            
-            // CONFIGURATION: Force the intent to 15 (Max)
-            // This tells the driver: "I must be the Group Owner. Do not negotiate."
-            val config = android.net.wifi.p2p.WifiP2pConfig.Builder()
-                .setNetworkName("DIRECT-WearHotspot") // Some devices ignore this, but it helps intent
-                .setPassphrase("12345678")           // API 29+ might ignore this, but worth a try
-                .setGroupOperatingBand(android.net.wifi.p2p.WifiP2pConfig.GROUP_OWNER_BAND_2GHZ) // Force 2.4GHz (More stable on watches)
-                .setGroupOperatingIntent(15) // MAX VALUE = I AM THE ROUTER
-                .build()
-
-            statusText.text = "Forcing Group Owner..."
-            
-            // Note: This requires API 29 (Android 10), which Wear OS 3/4 uses.
-            // If your watch is older (Wear OS 2), remove the 'config' argument.
-            try {
-                manager?.createGroup(channel, config, object : WifiP2pManager.ActionListener {
-                    override fun onSuccess() {
-                        statusText.text = "Group Created! Waiting..."
-                        requestGroupInfo()
-                    }
-                    override fun onFailure(reason: Int) {
-                        val errorMsg = when(reason) {
-                            WifiP2pManager.BUSY -> "Still Busy (Is GPS On?)"
-                            WifiP2pManager.P2P_UNSUPPORTED -> "HW Blocked"
-                            else -> "Fail: $reason"
-                        }
-                        statusText.text = errorMsg
-                    }
-                })
-            } catch (e: Exception) {
-                // Fallback for older API levels
-                statusText.text = "Config failed, trying legacy..."
-                manager?.createGroup(channel, null)
-            }
-        }, 1000)
-    }
-
     private fun requestGroupInfo() {
         try {
             manager?.requestGroupInfo(channel) { group ->
@@ -130,7 +90,52 @@ private fun attemptCreation() {
             }
         } catch (e: SecurityException) { }
     }
+private fun attemptCreation() {
+        // FIX 1: unwrapping the nullable 'channel' to ensure it's safe to use
+        val currentChannel = channel
+        if (currentChannel == null) {
+            statusText.text = "Error: Channel is null"
+            return
+        }
 
+        android.os.Handler(Looper.getMainLooper()).postDelayed({
+            statusText.text = "Forcing Group Owner..."
+
+            try {
+                // FIX 2: Correct way to set Intent 15 (Boss Mode)
+                // We use the Builder for the name/pass, but set the intent manually on the result.
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    val builder = android.net.wifi.p2p.WifiP2pConfig.Builder()
+                        .setNetworkName("DIRECT-WearHotspot")
+                        .setPassphrase("12345678")
+                        .setGroupOperatingBand(android.net.wifi.p2p.WifiP2pConfig.GROUP_OWNER_BAND_2GHZ)
+                    
+                    val config = builder.build()
+                    config.groupOwnerIntent = 15 // Set the intent directly here!
+
+                    manager?.createGroup(currentChannel, config, object : WifiP2pManager.ActionListener {
+                        override fun onSuccess() {
+                            statusText.text = "Group Created! Waiting..."
+                            requestGroupInfo()
+                        }
+                        override fun onFailure(reason: Int) {
+                             statusText.text = "Fail: $reason"
+                        }
+                    })
+                } else {
+                    // Fallback for older watches (Wear OS 2 / Android 8)
+                    manager?.createGroup(currentChannel, object : WifiP2pManager.ActionListener {
+                         override fun onSuccess() { requestGroupInfo() }
+                         override fun onFailure(reason: Int) { statusText.text = "Legacy Fail: $reason" }
+                    })
+                }
+            } catch (e: Exception) {
+                statusText.text = "Error: ${e.message}"
+                // Last resort fallback
+                manager?.createGroup(currentChannel, null)
+            }
+        }, 1000)
+    }
     private fun startProxy() {
         proxyJob = GlobalScope.launch(Dispatchers.IO) {
             // Force Cellular Network
