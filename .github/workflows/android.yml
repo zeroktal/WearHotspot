@@ -1,28 +1,50 @@
 name: Build APK
 
-on: [push]
+on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
+      # 1. Setup Java 17 (Required for modern Android)
       - name: set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
+      # 2. Force-install Gradle 8.2 (Matches the AGP version in your build.gradle)
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
+
+      # 3. Create settings.gradle dynamically with correct repositories
+      # This ensures the build system knows where to download plugins from.
       - name: Create settings.gradle
-        run: echo "include ':app'" > settings.gradle
+        run: |
+          echo "pluginManagement {" > settings.gradle
+          echo "    repositories {" >> settings.gradle
+          echo "        google()" >> settings.gradle
+          echo "        mavenCentral()" >> settings.gradle
+          echo "        gradlePluginPortal()" >> settings.gradle
+          echo "    }" >> settings.gradle
+          echo "}" >> settings.gradle
+          echo "rootProject.name = 'WearHotspot'" >> settings.gradle
+          echo "include ':app'" >> settings.gradle
 
+      # 4. Debug: List files to ensure 'app' folder exists
+      # If this step shows empty or missing 'app', we know the folder structure is wrong.
+      - name: Check Directory Structure
+        run: ls -R
+
+      # 5. Build
       - name: Build with Gradle
-        run: bash ./gradlew assembleDebug --stacktrace
-        # Note: If you don't have a gradlew wrapper committed, we can use the installed gradle:
-        # run: gradle assembleDebug
+        run: gradle assembleDebug --no-daemon --stacktrace
 
+      # 6. Upload the Result
       - name: Upload APK
         uses: actions/upload-artifact@v3
         with:
