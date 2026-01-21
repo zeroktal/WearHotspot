@@ -63,21 +63,44 @@ class MainActivity : Activity() {
             statusText.text = "Stopped"
         }
     }
+private fun startP2PGroup() {
+        statusText.text = "Clearing old groups..."
+        
+        // 1. Always try to remove old groups first (The Zombie Killer)
+        manager?.removeGroup(channel, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                attemptCreation()
+            }
+            override fun onFailure(reason: Int) {
+                // If removal failed (likely because no group existed), just proceed
+                attemptCreation()
+            }
+        })
+    }
 
-    private fun startP2PGroup() {
-        try {
-            manager?.createGroup(channel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    statusText.text = "Group Created. Waiting for info..."
-                    requestGroupInfo()
-                }
-                override fun onFailure(reason: Int) {
-                    statusText.text = "Failed to start: $reason"
-                }
-            })
-        } catch (e: SecurityException) {
-            statusText.text = "Permission Error"
-        }
+    private fun attemptCreation() {
+        // 2. Short delay to let the hardware settle
+        android.os.Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                statusText.text = "Starting Group..."
+                manager?.createGroup(channel, object : WifiP2pManager.ActionListener {
+                    override fun onSuccess() {
+                        statusText.text = "Group Created. Waiting for info..."
+                        requestGroupInfo()
+                    }
+                    override fun onFailure(reason: Int) {
+                        val errorMsg = when(reason) {
+                            WifiP2pManager.BUSY -> "Busy (Try turning off Bluetooth)"
+                            WifiP2pManager.P2P_UNSUPPORTED -> "P2P Not Supported"
+                            else -> "Error: $reason"
+                        }
+                        statusText.text = errorMsg
+                    }
+                })
+            } catch (e: SecurityException) {
+                statusText.text = "Permission Error"
+            }
+        }, 1000) // 1 second delay
     }
 
     private fun requestGroupInfo() {
