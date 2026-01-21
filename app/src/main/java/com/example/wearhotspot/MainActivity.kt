@@ -78,7 +78,7 @@ private fun startP2PGroup() {
         })
     }
 
-    private fun attemptCreation() {
+private fun attemptCreation() {
         // 2. Short delay to let the hardware settle
         android.os.Handler(Looper.getMainLooper()).postDelayed({
             try {
