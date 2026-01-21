@@ -15,22 +15,23 @@ android {
         versionName "1.0"
     }
 
-    buildTypes {
-        debug {
-            minifyEnabled false
-        }
+    // --- THE FIX IS HERE ---
+    // This forces both Java and Kotlin to use Version 17 so they match.
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
-    
-    // This tells Gradle to be less strict about small errors
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    // -----------------------
+
     lintOptions {
         abortOnError false
     }
 }
+
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    
-    // Add BOTH of these to be safe
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 }
