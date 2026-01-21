@@ -79,28 +79,43 @@ private fun startP2PGroup() {
     }
 
 private fun attemptCreation() {
-        // 2. Short delay to let the hardware settle
+        // Give the hardware a moment to settle after the "removeGroup" call
         android.os.Handler(Looper.getMainLooper()).postDelayed({
+            
+            // CONFIGURATION: Force the intent to 15 (Max)
+            // This tells the driver: "I must be the Group Owner. Do not negotiate."
+            val config = android.net.wifi.p2p.WifiP2pConfig.Builder()
+                .setNetworkName("DIRECT-WearHotspot") // Some devices ignore this, but it helps intent
+                .setPassphrase("12345678")           // API 29+ might ignore this, but worth a try
+                .setGroupOperatingBand(android.net.wifi.p2p.WifiP2pConfig.GROUP_OWNER_BAND_2GHZ) // Force 2.4GHz (More stable on watches)
+                .setGroupOperatingIntent(15) // MAX VALUE = I AM THE ROUTER
+                .build()
+
+            statusText.text = "Forcing Group Owner..."
+            
+            // Note: This requires API 29 (Android 10), which Wear OS 3/4 uses.
+            // If your watch is older (Wear OS 2), remove the 'config' argument.
             try {
-                statusText.text = "Starting Group..."
-                manager?.createGroup(channel, object : WifiP2pManager.ActionListener {
+                manager?.createGroup(channel, config, object : WifiP2pManager.ActionListener {
                     override fun onSuccess() {
-                        statusText.text = "Group Created. Waiting for info..."
+                        statusText.text = "Group Created! Waiting..."
                         requestGroupInfo()
                     }
                     override fun onFailure(reason: Int) {
                         val errorMsg = when(reason) {
-                            WifiP2pManager.BUSY -> "Busy (Try turning off Bluetooth)"
-                            WifiP2pManager.P2P_UNSUPPORTED -> "P2P Not Supported"
-                            else -> "Error: $reason"
+                            WifiP2pManager.BUSY -> "Still Busy (Is GPS On?)"
+                            WifiP2pManager.P2P_UNSUPPORTED -> "HW Blocked"
+                            else -> "Fail: $reason"
                         }
                         statusText.text = errorMsg
                     }
                 })
-            } catch (e: SecurityException) {
-                statusText.text = "Permission Error"
+            } catch (e: Exception) {
+                // Fallback for older API levels
+                statusText.text = "Config failed, trying legacy..."
+                manager?.createGroup(channel, null)
             }
-        }, 1000) // 1 second delay
+        }, 1000)
     }
 
     private fun requestGroupInfo() {
